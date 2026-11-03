@@ -98,15 +98,16 @@ def random_lr_batch(bs=16, p=48):
     return torch.from_numpy(np.stack(out)).permute(0, 3, 1, 2).to(DEVICE)
 
 opt = torch.optim.Adam(student.parameters(), 1e-3)
+torch.backends.cudnn.benchmark = True                          # 毎回同じ大きさの入力なので、最速の計算方法を選ばせる
 t = time.time()
 for step in range(2000):
     xb = random_lr_batch()
-    with torch.no_grad():
-        target = teacher(xb)                                   # 教師の出力
+    with torch.no_grad(), torch.autocast("cuda", dtype=torch.float16, enabled=(DEVICE == "cuda")):
+        target = teacher(xb).float()                           # 教師の出力。教師は FP16 で動かす（1. で見たとおり結果はほぼ同じで、T4 では数倍速い）
     loss = nn.functional.l1_loss(student(xb), target)
     opt.zero_grad(); loss.backward(); opt.step()
-    if step % 500 == 0:
-        print(f"step {step}: L1 to teacher {loss.item():.4f}")
+    if step % 250 == 0:
+        print(f"step {step}: L1 to teacher {loss.item():.4f}  ({time.time()-t:.0f}s)")
 print(f"蒸留の学習時間: {time.time()-t:.0f}s")
 student.eval()
 
@@ -129,6 +130,7 @@ print(f"生徒は教師の {t_ms/s_ms:.0f} 倍速。教師出力との PSNR: {ps
 import onnxruntime as ort
 from onnxruntime.quantization import quantize_static, CalibrationDataReader, QuantType, QuantFormat
 
+assert "out_t" in globals(), "2. の蒸留が最後まで実行されていません（途中で止めた場合は、2. のセルをもう一度実行してください）"
 student_cpu = TinySR().eval()
 student_cpu.load_state_dict({k: v.cpu() for k, v in student.state_dict().items()})
 dummy = torch.zeros(1, 3, 128, 128)

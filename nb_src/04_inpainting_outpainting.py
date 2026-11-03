@@ -82,15 +82,42 @@ show([Image.fromarray(damaged), Image.fromarray(telea), lama_out, sd_out],
 # %% [markdown]
 # ## 3. 不要物の除去（大きなマスク）
 # 宇宙飛行士の左後ろにある **星条旗** を消してみます。大きな領域では古典手法は破綻し、生成モデルの差が出ます。
+#
+# マスク（赤い部分）は、**旗全体** を覆うように、宇宙服の左の縁に沿った多角形で作ります。
+# 旗は画像の下の端まで続いているので、上の方だけを四角で覆うと、残った縞模様を手がかりに、AI が旗を描き直してしまいます（このあとの「悪い例」）。
 
 # %%
+def show_mask(image, m):
+    """マスクの部分を赤く塗って重ねた画像"""
+    ov = np.array(image).astype(np.float32)
+    ov[m > 0] = ov[m > 0] * 0.45 + np.array([255, 0, 0]) * 0.55
+    return ov.astype(np.uint8)
+
 obj_mask = np.zeros((512, 512), np.uint8)
-cv2.rectangle(obj_mask, (0, 0), (150, 230), 255, -1)       # 左上の旗のあたり
+flag = np.array([(0, 0), (112, 0), (110, 200), (98, 222), (70, 248), (48, 272), (32, 300), (24, 340),
+                 (18, 400), (14, 460), (12, 512), (0, 512)], np.int32)   # 旗の輪郭（右側は宇宙服の左の縁に沿う）
+cv2.fillPoly(obj_mask, [flag], 255)
+obj_mask = cv2.dilate(obj_mask, np.ones((13, 13), np.uint8))   # 縁を少し広げる（旗が少しでも残ると、それを手がかりに描き直される）
+show([img, show_mask(img, obj_mask), obj_mask], ["original", "mask (red = area to fill)", "mask"], size=3.5)
+
+# %%
 res_lama = run_lama(img, obj_mask)
 res_sd = [sd_inpaint(img, obj_mask, "plain gray studio wall, empty background", seed=s,
                      negative_prompt="flag, stars, stripes, text") for s in (0, 1)]
 res_telea = Image.fromarray(cv2.inpaint(np.array(img), obj_mask, 5, cv2.INPAINT_TELEA))
 show([img, res_telea, res_lama] + res_sd, ["original", "Telea", "LaMa", "SD seed=0", "SD seed=1"], size=3.2)
+
+# %% [markdown]
+# **悪い例：マスクが旗の一部しか覆っていない場合**
+# 左上だけを四角で覆うと、マスクの外に残った縞模様を、LaMa も拡散モデルも「続き」として描き足し、旗が消えません。
+# **消したい物は、影や端まで含めて全部覆う** のがコツです。
+
+# %%
+rect_mask = np.zeros((512, 512), np.uint8)
+cv2.rectangle(rect_mask, (0, 0), (150, 230), 255, -1)       # 左上だけ
+bad_lama = run_lama(img, rect_mask)
+bad_sd = sd_inpaint(img, rect_mask, "plain gray studio wall, empty background", seed=0, negative_prompt="flag, stars, stripes, text")
+show([show_mask(img, rect_mask), bad_lama, bad_sd], ["mask: top-left only (red)", "LaMa", "SD seed=0"], size=3.5)
 
 # %% [markdown]
 # **観察ポイント**：拡散モデルは seed を変えると **毎回違う「もっともらしい」答え** を出します（正解は1つではない）。
