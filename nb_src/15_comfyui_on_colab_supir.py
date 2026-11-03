@@ -53,6 +53,8 @@ if COMFY_URL is None:
     if not os.path.exists(os.path.join(nodes_dir, "ComfyUI-SUPIR")):
         sh("git clone --depth 1 https://github.com/kijai/ComfyUI-SUPIR", cwd=nodes_dir)
         sh(f"{sys.executable} -m pip install -q -r ComfyUI-SUPIR/requirements.txt", cwd=nodes_dir)
+    # SUPIR ノードは transformers 5 系では CLIP を読み込めない（内部構造が変わったため）。4 系の最終版に入れ替える
+    pip_install("transformers==4.57.6")
     # 講座の劣化作成ノード（縮小＋ノイズ、ガウスぼかし）を書き出す
     sem = os.path.join(nodes_dir, "seminar_nodes")
     os.makedirs(sem, exist_ok=True)

@@ -26,8 +26,11 @@
 | 13 | 奥行きで変わるピンボケの復元：場所ごとの逆カーネル（最小二乗法） | T4（無料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/13_spatially_varying_deblur.ipynb) |
 | 14 | VLM による外観検査：異常マップ＋言葉による報告 | T4（無料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/14_vlm_visual_inspection.ipynb) |
 | 15 | ComfyUI on Colab：SUPIR | A100＋ハイメモリ（有料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/15_comfyui_on_colab_supir.ipynb) |
+| 16 | 超解像・顔復元の手法比較：Real-ESRGAN / StableSR / DiffBIR / SUPIR / GFPGAN / CodeFormer / DifFace（スライドの比較実験の再現） | A100＋ハイメモリ（有料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/16_sr_face_comparison_comfyui.ipynb) |
 
 **有料枠について**：必ず [docs/Colab有料枠ガイド.pdf](docs/Colab有料枠ガイド.pdf) を読んでから使ってください（料金・時間制限・切断時の注意）。
+
+**ローカル PC（社内の GPU PC）で動かす場合**：[docs/ローカル環境構築ガイド.pdf](docs/ローカル環境構築ガイド.pdf) を見てください（Python 環境・ComfyUI の構築、モデルの保存先、モデルのライセンス一覧。手順の要点は下の「3. 社内の GPU PC で動かす」）。
 
 **実行のコツ**：セルは必ず上から順に実行してください。途中のセルだけを実行したり、ランタイムが再起動（切断・メモリ不足）したあとに続きから実行したりすると、`NameError`（変数が無い）になります。その場合は［ランタイム］→［すべてのセルを実行］で最初からやり直してください。
 
@@ -80,7 +83,7 @@ jupyter lab
 - 講師の PC の動作環境（GPU・ライブラリの版）は、ガイドの「C. 講師の PC の動作環境」にあります。ライブラリの版の一覧は `requirements.txt` です。
 
 **実行例**：`notebooks_executed/` には、講師の PC（RTX 5090 Laptop）で実行した結果つきのノートブックがあります。
-有料枠が必要なノートブック（10, 11, 15）も、実行せずに結果だけ確認できます（GitHub 上でそのまま表示されます）。
+有料枠が必要なノートブック（10, 11, 15, 16）も、実行せずに結果だけ確認できます（GitHub 上でそのまま表示されます）。
 
 ## フォルダ構成
 
@@ -94,7 +97,7 @@ nb_src/               ノートブックの元ソース（# %% 形式）と生�
 ```
 
 ## 注意
-- 教材のコードは学習目的のサンプルです。業務で使う場合は、各モデルの**ライセンス**（SUPIR・FLUX.1 [dev]・CodeFormer・DifFace・Qwen2.5-VL-3B などは非商用／研究用）を確認してください。一覧は docs/ローカル環境構築ガイド.pdf の末尾にあります。
+- 教材のコードは学習目的のサンプルです。業務で使う場合は、各モデルの**ライセンス**（SUPIR・FLUX.1 [dev]・CodeFormer・DifFace・Qwen2.5-VL-3B などは非商用／研究用）を確認してください。一覧は [docs/ローカル環境構築ガイド.pdf](docs/ローカル環境構築ガイド.pdf) の末尾にあります。
 - 14・15 で使うデータ・モデル：Kodak 画像（評価用フリー画像）、合金部品の画像（コードで生成）、Depth Anything V2 Small（Apache 2.0）、DRUNet（KAIR、MIT）、VisA データセット（CC BY 4.0）、Qwen3-VL-4B-Instruct（Apache 2.0）。
 - 社外秘の画像をクラウド（Colab）にアップロードする前に、社内の情報セキュリティ規程を確認してください。
 - 動作確認環境：ローカル Windows 11 / RTX 5090 Laptop GPU (24GB) / Python 3.12 / PyTorch 2.11 (CUDA 12.8)

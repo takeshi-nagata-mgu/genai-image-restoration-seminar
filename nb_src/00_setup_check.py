@@ -30,6 +30,7 @@
 # | 13 | 奥行きで変わるピンボケ：場所ごとの逆カーネル | T4 |
 # | 14 | VLM による外観検査：違和感を言葉で報告 | T4 |
 # | 15 | ComfyUI on Colab：SUPIR による高品質復元 | A100推奨（有料・ハイメモリ） |
+# | 16 | 超解像・顔復元の手法比較（SUPIR・DiffBIR・CodeFormer など） | A100推奨（有料・ハイメモリ） |
 
 # %% [setup]
 
@@ -51,7 +52,7 @@ if DEVICE == "cuda":
     print(f"\nGPU メモリ {vram:.1f} GB で実行できるノートブック:")
     print("  01〜09: OK" if vram >= 7 else "  01〜05, 09 程度（他はメモリ不足の可能性）")
     print("  10〜14: OK" if vram >= 14 else "  10〜14: メモリ不足の可能性（L4以上を推奨）")
-    print("  15    : OK（システムRAMも 40GB 以上必要）" if vram >= 22 else "  15    : GPU メモリ不足（A100 / L4 + ハイメモリを推奨）")
+    print("  15・16: OK（システムRAMも 40GB 以上必要）" if vram >= 22 else "  15・16: GPU メモリ不足（A100 + ハイメモリを推奨）")
 else:
     print("\n⚠ GPU なし：ノートブック 01 以外は非常に遅くなります。")
 
