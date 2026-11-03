@@ -55,6 +55,15 @@ print(f"{'model':22s} {'prec':5s} {'params':>12s} {'time(128->512)':>15s}")
 for r in rows:
     print(f"{r[0]:22s} {r[1]:5s} {r[2]:12,d} {r[3]:12.1f} ms")
 
+# 画質も確認する（速さだけでなく、結果の見た目が許容できるか）
+with torch.no_grad():
+    sr1 = {"x4plus FP32": tensor_to_pil(teacher(x)), "Compact FP32": tensor_to_pil(compact(x))}
+    if DEVICE == "cuda":
+        compact.model.half(); sr1["Compact FP16"] = tensor_to_pil(compact(x.half())); compact.model.float()
+box = (110, 40, 430, 360)                     # 顔の部分を拡大
+show([lr.resize(hr.size, Image.BICUBIC).crop(box)] + [v.crop(box) for v in sr1.values()] + [hr.crop(box)],
+     ["Bicubic"] + [f"{n}\n{psnr(v, hr):.2f} dB" for n, v in sr1.items()] + ["Ground truth"], size=3.2)
+
 # %% [markdown]
 # ## 2. 知識蒸留（Knowledge Distillation）
 # 教師（Real-ESRGAN x4plus）の出力を「正解」として、パラメータ数 1/600 程度の小さな生徒ネットワークを学習します。
@@ -147,6 +156,8 @@ for name, path in [("ONNX FP32 (CPU)", "tiny_sr.onnx"), ("ONNX INT8 (CPU)", "tin
     print(f"{name:18s} {os.path.getsize(path)/1024:7.1f} KB  {ms:7.1f} ms  PSNR vs teacher {psnr(res[name], out_t):.2f} dB")
 with torch.no_grad():
     print(f"{'PyTorch FP32 (CPU)':18s} {'':7s}     {bench(lambda: student_cpu(torch.from_numpy(inp['lr']))):7.1f} ms")
+show([out_t.crop(box), out_s.crop(box)] + [v.crop(box) for v in res.values()],
+     ["Teacher", "Student (PyTorch)"] + [f"{n}\nvs teacher {psnr(v, out_t):.2f} dB" for n, v in res.items()], size=3.2)
 
 # %% [markdown]
 # **観察ポイント**：INT8 でファイルサイズは約 1/3 になります。速度は **CPU の種類やモデルの大きさで変わり**、このような小さいモデルでは速くならないこともあります（量子化・逆量子化の処理が相対的に重い）。

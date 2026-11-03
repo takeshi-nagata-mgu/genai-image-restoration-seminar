@@ -90,7 +90,7 @@ def wiener_kernel(k, lam, n, size=256):                     # Wiener を n×n �
     return h / h.sum()                                      # 打ち切ると明るさ（直流成分）がずれるので、合計 1 に直す（Wiener に有利な補正）
 
 N15, LAMS, GSIG = 15, 10.0 ** np.arange(-6, -0.9, 0.25), np.arange(1.0, 2.51, 0.25)
-paper = {}
+paper, paper_imgs = {}, {}                                  # paper_imgs：画像 05 の復元結果（あとで表示する）
 for case, true_psf in {"Gaussian sigma=1.5": gauss_psf(1.5), "disk r=3 (defocus)": disk_psf(3)}.items():
     deg = lambda x: q8(apply_kernel(x, true_psf))
     pairs = [(deg(x), x) for x in train_imgs]
@@ -101,12 +101,16 @@ for case, true_psf in {"Gaussian sigma=1.5": gauss_psf(1.5), "disk r=3 (defocus)
         b = deg(g)
         # Wiener：ガウス PSF を仮定し、σ と λ をテスト画像で最良に選ぶ
         sg, lm = max(((s, l) for s in GSIG for l in LAMS), key=lambda p: P(wiener_full(b, gauss_psf(p[0]), p[1]), g))
-        rows[t] = {"input": P(b, g),
-                   "LS 15x15": P(apply_kernel(b, k_ls), g),
-                   "LS 15x15, block-standardized (paper)": P(apply_kernel(b, k_std), g),
-                   "Wiener 15x15 (Gaussian assumed)": max(P(apply_kernel(b, wiener_kernel(gauss_psf(sg), l, N15)), g) for l in LAMS),
-                   "Wiener full FFT (Gaussian assumed)": P(wiener_full(b, gauss_psf(sg), lm), g),
-                   "Wiener full FFT (exact PSF, reference)": max(P(wiener_full(b, true_psf, l), g) for l in LAMS)}
+        best = lambda outs: max(outs, key=lambda o: P(o, g))   # λ を変えた結果のうち、最も PSNR の高いもの
+        imgs = {"input": b,
+                "LS 15x15": apply_kernel(b, k_ls),
+                "LS 15x15, block-standardized (paper)": apply_kernel(b, k_std),
+                "Wiener 15x15 (Gaussian assumed)": best(apply_kernel(b, wiener_kernel(gauss_psf(sg), l, N15)) for l in LAMS),
+                "Wiener full FFT (Gaussian assumed)": wiener_full(b, gauss_psf(sg), lm),
+                "Wiener full FFT (exact PSF, reference)": best(wiener_full(b, true_psf, l) for l in LAMS)}
+        rows[t] = {n: P(o, g) for n, o in imgs.items()}
+        if t == "05":
+            paper_imgs[case] = imgs
     paper[case] = rows
     print(f"\n[{case}]  PSNR (dB)        " + "  ".join(TESTS) + "   mean")
     for name in rows[TESTS[0]]:
@@ -124,6 +128,24 @@ for case, true_psf in {"Gaussian sigma=1.5": gauss_psf(1.5), "disk r=3 (defocus)
 # - ガウスぼけでは、PSF を **正確に** 与え大きさ無制限にした理想的な Wiener（最下行）とほぼ同等。逆カーネルは PSF の式を知らずに、データだけでこの理論上の上限に近づく。
 #   円盤状のボケでは、PSF の形まで正確に分かっていれば理想的な Wiener がさらに上だが、逆カーネルも大きくすると近づく（21×21 で約 28.1 dB、31×31 で約 29.1 dB）
 # - ブロックごとの標準化（論文の工夫）は、明るさやコントラストに依らず誤差を均等に扱うため、PSNR（2 乗誤差）では素の最小二乗とわずかに差が出る
+
+# %% [markdown]
+# **復元した画像**（テスト画像 05 の一部を拡大。数値は画像全体の PSNR）
+# - 上段：ガウスぼけ（σ=1.5）。ボケが小さいので、差は細かい模様や輪郭に出る
+# - 下段：円盤状のピンボケ（半径 3 画素）。ガウスを仮定した Wiener と、データから学んだ逆カーネルの差が大きくなる
+
+# %%
+g05 = test_imgs["05"]
+box1 = (slice(30, 290), slice(380, 640))                   # 5. と同じ場所を拡大
+cols = ["input", "LS 15x15, block-standardized (paper)", "Wiener 15x15 (Gaussian assumed)",
+        "Wiener full FFT (Gaussian assumed)", "Wiener full FFT (exact PSF, reference)"]
+for case, imgs in paper_imgs.items():
+    print(case)
+    show([np.clip(imgs[n][box1], 0, 1) for n in cols] + [g05[box1]],
+         [f"{n}\n{P(imgs[n], g05):.2f} dB" for n in cols] + ["ground truth"], size=3.0)
+
+# %% [markdown]
+# **学習した逆カーネル**（15×15 の係数を画像として表示）。最小二乗の逆カーネルは、Wiener を 15×15 で打ち切ったものとよく似た形になる
 
 # %%
 show([kernels_paper[0], kernels_paper[1], kernels_paper[2]],
@@ -199,7 +221,7 @@ def est_sigma(blur, df=DF):
 def bin_weights(s):
     """σ に対する各段階の補間の重み（H×W×17、隣り合う 2 段階だけが 0 でない）"""
     st = LEVELS[1] - LEVELS[0]; s = np.clip(s, LEVELS[0], LEVELS[-1])
-    return np.stack([np.clip(1 - np.abs(s - l) / st, 0, 1) for l in LEVELS], -1)
+    return np.stack([np.clip(1 - np.abs(s - l) / st, 0, 1) for l in LEVELS], -1).astype(np.float32)   # float32：Colab のメモリ節約
 
 def blend(outs, s):
     return np.einsum("hwl,lhwc->hwc", bin_weights(s), np.stack(outs))
@@ -219,23 +241,25 @@ for t, sc in scenes.items():
 # %%
 def mix_features(outs, s):
     """特徴 = （推定 σ の区間の重み）×（各逆カーネルの出力）。これに重みを掛けて足すと復元画像になる"""
-    O = np.stack(outs, -1)                                  # H×W×3×17
+    O = np.stack(outs, -1).astype(np.float32)               # H×W×3×17（float32：Colab のメモリ節約）
     return (bin_weights(s)[:, :, None, :, None] * O[:, :, :, None, :]).reshape(*O.shape[:3], -1)
 
 t0 = time.time()
 rng = np.random.default_rng(1)
-Xs, ys = [], []
-for k, x in enumerate(train_imgs):
+n_w = len(LEVELS) ** 2
+XtX, Xty, n_px = np.zeros((n_w, n_w)), np.zeros(n_w), 0   # 正規方程式の XᵀX と Xᵀy を少しずつ足していく
+for k, x in enumerate(train_imgs):                          # （全部の X を溜めると Colab 無料枠のメモリ 12.7GB を超えるため）
     D = disparity(x)
     for df in (1.0, 0.9, 0.8, 0.7, 0.6, 0.5):              # ピント位置を変えて、いろいろな奥行きボケを作る
         sm = np.clip(A * np.abs(D - df), 0, 4)
         b = add_noise(sv_blur(x, sm), seed=200 + k)
         F = mix_features([apply_kernel(b, kk) for kk in kernels], est_sigma(b, df))
         m = rng.random(F.shape[:3]) < 0.08; m[:24] = m[-24:] = m[:, :24] = m[:, -24:] = False
-        Xs.append(F[m]); ys.append(x[m])
-X, y = np.concatenate(Xs).astype(np.float64), np.concatenate(ys).astype(np.float64)
-W_mix = np.linalg.solve(X.T @ X + 1e-4 * np.eye(X.shape[1]), X.T @ y).astype(np.float32)
-print(f"混ぜ方の重み {W_mix.size} 個を学習（{len(y)//1000}k 画素, {time.time()-t0:.0f}s）")
+        Fm, ym = F[m].astype(np.float64), x[m].astype(np.float64)
+        XtX += Fm.T @ Fm; Xty += Fm.T @ ym; n_px += len(ym)
+        del F, Fm
+W_mix = np.linalg.solve(XtX + 1e-4 * np.eye(n_w), Xty).astype(np.float32)
+print(f"混ぜ方の重み {W_mix.size} 個を学習（{n_px//1000}k 画素, {time.time()-t0:.0f}s）")
 
 res = {}
 for t, sc in scenes.items():
@@ -261,6 +285,8 @@ for n in res[TESTS[0]]:
 # ## 5. 比較（拡大）
 
 # %%
+assert "scenes" in globals() and "out" in scenes["05"], "2〜4 のセルが実行されていません。上から順に実行してください（ランタイムが再起動した場合も最初から）"
+s05 = scenes["05"]
 o, g = s05["out"], s05["gt"]
 names = ["input (defocused)", "Wiener, fixed PSF", "Wiener, local (est. depth)", "LS kernel, local (est. depth)", "LS kernel, local + learned mixing"]
 box = (slice(30, 290), slice(380, 640))                   # 奥の選手（ボケが大きい所）を拡大
