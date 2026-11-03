@@ -34,7 +34,8 @@ def download(url, name=None):
     path = os.path.join(WEIGHTS_DIR, name or url.split("/")[-1])
     if not os.path.exists(path):
         print("downloading", url)
-        urllib.request.urlretrieve(url, path)
+        urllib.request.urlretrieve(url, path + ".part")      # 途中で止めても壊れたファイルが残らないように
+        os.replace(path + ".part", path)
     return path
 
 def load_sample(name="astronaut", size=None):

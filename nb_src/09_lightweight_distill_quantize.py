@@ -66,7 +66,7 @@ show([lr.resize(hr.size, Image.BICUBIC).crop(box)] + [v.crop(box) for v in sr1.v
 
 # %% [markdown]
 # ## 2. 知識蒸留（Knowledge Distillation）
-# 教師（Real-ESRGAN x4plus）の出力を「正解」として、パラメータ数 1/600 程度の小さな生徒ネットワークを学習します。
+# 教師（Real-ESRGAN x4plus）の出力を「正解」として、パラメータ数 1/650 程度の小さな生徒ネットワークを学習します。
 # 自社の画像（ラインカメラの画像など）で蒸留すれば、**その現場に特化した小型モデル** が作れます。
 
 # %%
