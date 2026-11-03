@@ -1,0 +1,26 @@
+# 本講座のノートブックをローカルで動かすためのライブラリ（講師の PC で全ノートブックの動作を確認した版）
+# PyTorch は GPU に合わせて先に入れる（docs/ローカル環境構築ガイド.pdf の B-1 を参照）：
+#   uv pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
+# そのあとで：
+#   uv pip install -r requirements.txt
+diffusers==0.42.1
+transformers==5.21.0
+accelerate==1.15.0
+peft==0.21.2
+safetensors==0.8.0
+huggingface-hub==2.3.0
+spandrel==0.4.2
+lpips==0.1.4
+torchmetrics==1.9.0
+piq==0.8.0
+opencv-python-headless==5.0.0.93
+scikit-image==0.26.0
+scipy==1.18.1
+numpy==2.2.6
+matplotlib==3.11.2
+Pillow==13.0.0
+onnx==1.23.2
+onnxruntime==1.31.1
+onnxscript==0.7.2
+psutil==7.2.2
+jupyterlab==4.6.4

@@ -1,0 +1,142 @@
+{
+ "1": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "input_masked.png"
+  },
+  "_meta": {
+   "title": "入力画像（MaskEditor で消したい部分を塗る）"
+  }
+ },
+ "10": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "sd-v1-5-inpainting.ckpt"
+  }
+ },
+ "11": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "10",
+    1
+   ],
+   "text": "plain gray wall, empty background, photo"
+  },
+  "_meta": {
+   "title": "プロンプト（生成したい内容）"
+  }
+ },
+ "12": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "10",
+    1
+   ],
+   "text": "blurry, low quality, watermark, text, deformed"
+  },
+  "_meta": {
+   "title": "ネガティブプロンプト（消したい物も書く）"
+  }
+ },
+ "13": {
+  "class_type": "VAEEncodeForInpaint",
+  "inputs": {
+   "pixels": [
+    "1",
+    0
+   ],
+   "vae": [
+    "10",
+    2
+   ],
+   "mask": [
+    "1",
+    1
+   ],
+   "grow_mask_by": 8
+  }
+ },
+ "14": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "10",
+    0
+   ],
+   "positive": [
+    "11",
+    0
+   ],
+   "negative": [
+    "12",
+    0
+   ],
+   "latent_image": [
+    "13",
+    0
+   ],
+   "seed": 0,
+   "steps": 30,
+   "cfg": 7.0,
+   "sampler_name": "dpmpp_2m",
+   "scheduler": "karras",
+   "denoise": 1.0
+  }
+ },
+ "15": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "14",
+    0
+   ],
+   "vae": [
+    "10",
+    2
+   ]
+  }
+ },
+ "16": {
+  "class_type": "GrowMask",
+  "inputs": {
+   "mask": [
+    "1",
+    1
+   ],
+   "expand": 6,
+   "tapered_corners": true
+  }
+ },
+ "17": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "1",
+    0
+   ],
+   "source": [
+    "15",
+    0
+   ],
+   "x": 0,
+   "y": 0,
+   "resize_source": false,
+   "mask": [
+    "16",
+    0
+   ]
+  }
+ },
+ "18": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "17",
+    0
+   ],
+   "filename_prefix": "inpaint_sd15"
+  }
+ }
+}

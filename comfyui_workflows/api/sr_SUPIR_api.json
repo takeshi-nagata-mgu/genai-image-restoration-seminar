@@ -1,0 +1,265 @@
+{
+ "1": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "female_portrait_020.jpg"
+  },
+  "_meta": {
+   "title": "入力画像読込 (劣化画像を直接入力)"
+  }
+ },
+ "54": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "53",
+    0
+   ],
+   "filename_prefix": "GroundTruth "
+  },
+  "_meta": {
+   "title": "正解保存"
+  }
+ },
+ "64": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "41",
+    0
+   ],
+   "filename_prefix": "00_Degraded_Input_x4"
+  },
+  "_meta": {
+   "title": "劣化入力画像x4を保存"
+  }
+ },
+ "40": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "sd_xl_base_1.0.safetensors"
+  },
+  "_meta": {
+   "title": "[SUPIR] SDXL チェックポイント"
+  }
+ },
+ "47": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "46",
+    0
+   ],
+   "filename_prefix": "05_SUPIR"
+  },
+  "_meta": {
+   "title": "[SUPIR] 結果保存"
+  }
+ },
+ "53": {
+  "class_type": "SRDegradationNode",
+  "inputs": {
+   "image": [
+    "1",
+    0
+   ],
+   "scale_factor": 0.5,
+   "multiple_of": 16,
+   "noise_sigma": 0,
+   "noise_seed": 11,
+   "enabled": "true"
+  },
+  "_meta": {
+   "title": "縮小＋ノイズ加算 (enabled=false でスキップ)"
+  }
+ },
+ "50": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "77",
+    0
+   ],
+   "filename_prefix": "00_Degraded_Input"
+  },
+  "_meta": {
+   "title": "劣化入力画像を保存"
+  }
+ },
+ "45": {
+  "class_type": "SUPIR_sample",
+  "inputs": {
+   "SUPIR_model": [
+    "42",
+    0
+   ],
+   "latents": [
+    "43",
+    2
+   ],
+   "positive": [
+    "44",
+    0
+   ],
+   "negative": [
+    "44",
+    1
+   ],
+   "seed": 483640279400566,
+   "steps": 30,
+   "cfg_scale_start": 4,
+   "cfg_scale_end": 1,
+   "EDM_s_churn": 5,
+   "s_noise": 1.003,
+   "DPMPP_eta": 1,
+   "control_scale_start": 1,
+   "control_scale_end": 1,
+   "restore_cfg": -1,
+   "keep_model_loaded": false,
+   "sampler": "TiledRestoreDPMPP2MSampler",
+   "sampler_tile_size": 1024,
+   "sampler_tile_stride": 512
+  },
+  "_meta": {
+   "title": "[SUPIR] サンプリング (RestoreDPMPP2M)"
+  }
+ },
+ "46": {
+  "class_type": "SUPIR_decode",
+  "inputs": {
+   "SUPIR_VAE": [
+    "43",
+    0
+   ],
+   "latents": [
+    "45",
+    0
+   ],
+   "use_tiled_vae": false,
+   "decoder_tile_size": 512,
+   "decoder_dtype": "auto"
+  },
+  "_meta": {
+   "title": "[SUPIR] デコード"
+  }
+ },
+ "42": {
+  "class_type": "SUPIR_model_loader_v2",
+  "inputs": {
+   "model": [
+    "40",
+    0
+   ],
+   "clip": [
+    "40",
+    1
+   ],
+   "vae": [
+    "40",
+    2
+   ],
+   "supir_model": "SUPIR-v0Q_fp16.safetensors",
+   "fp8_unet": false,
+   "diffusion_dtype": "auto",
+   "high_vram": false
+  },
+  "_meta": {
+   "title": "[SUPIR] モデル読込 ← ファイル名を要確認・修正"
+  }
+ },
+ "43": {
+  "class_type": "SUPIR_first_stage",
+  "inputs": {
+   "SUPIR_VAE": [
+    "42",
+    1
+   ],
+   "image": [
+    "41",
+    0
+   ],
+   "use_tiled_vae": false,
+   "encoder_tile_size": 512,
+   "decoder_tile_size": 512,
+   "encoder_dtype": "auto"
+  },
+  "_meta": {
+   "title": "[SUPIR] First Stage (LQ画像をエンコード＆事前デノイズ)"
+  }
+ },
+ "78": {
+  "class_type": "PreviewImage",
+  "inputs": {
+   "images": [
+    "43",
+    1
+   ]
+  },
+  "_meta": {
+   "title": "PreviewImage"
+  }
+ },
+ "44": {
+  "class_type": "SUPIR_conditioner",
+  "inputs": {
+   "SUPIR_model": [
+    "42",
+    0
+   ],
+   "latents": [
+    "43",
+    2
+   ],
+   "positive_prompt": "high quality, detailed, sharp, 8k",
+   "negative_prompt": "blurry, noise, low quality, artifacts"
+  },
+  "_meta": {
+   "title": "[SUPIR] Conditioner (テキスト条件付け)"
+  }
+ },
+ "2": {
+  "class_type": "SRDegradationNode",
+  "inputs": {
+   "image": [
+    "53",
+    0
+   ],
+   "scale_factor": 0.25,
+   "multiple_of": 16,
+   "noise_sigma": 15,
+   "noise_seed": 111,
+   "enabled": "true"
+  },
+  "_meta": {
+   "title": "縮小＋ノイズ加算 (enabled=false でスキップ)"
+  }
+ },
+ "41": {
+  "class_type": "ImageScaleBy",
+  "inputs": {
+   "image": [
+    "77",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "scale_by": 4
+  },
+  "_meta": {
+   "title": "[SUPIR] 前処理: lanczos 4x (SUPIRはHR入力が必要)"
+  }
+ },
+ "77": {
+  "class_type": "CleanGaussianBlurNode",
+  "inputs": {
+   "image": [
+    "2",
+    0
+   ],
+   "kernel_size": 5,
+   "sigma": 0.1
+  },
+  "_meta": {
+   "title": "CleanGaussianBlurNode"
+  }
+ }
+}

@@ -1,0 +1,6 @@
+# ノートブック実行時にダウンロードされる重み・出力
+weights/
+outputs/
+__pycache__/
+.ipynb_checkpoints/
+*.pyc

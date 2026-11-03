@@ -1,0 +1,470 @@
+{
+ "1": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "female_portrait_020.jpg"
+  },
+  "_meta": {
+   "title": "入力画像読込 (劣化画像を直接入力)"
+  }
+ },
+ "54": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "53",
+    0
+   ],
+   "filename_prefix": "GroundTruth "
+  },
+  "_meta": {
+   "title": "正解保存"
+  }
+ },
+ "72": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "76",
+    0
+   ],
+   "filename_prefix": "01_GFPGAN"
+  },
+  "_meta": {
+   "title": "[GFPGAN] 結果保存"
+  }
+ },
+ "73": {
+  "class_type": "FaceRestoreModelLoader",
+  "inputs": {
+   "model_name": "codeformer.pth"
+  },
+  "_meta": {
+   "title": "[CodeFormer] モデル読込"
+  }
+ },
+ "74": {
+  "class_type": "FaceRestoreCFWithModel",
+  "inputs": {
+   "facerestore_model": [
+    "73",
+    0
+   ],
+   "image": [
+    "41",
+    0
+   ],
+   "facedetection": "retinaface_resnet50",
+   "codeformer_fidelity": 0.7
+  },
+  "_meta": {
+   "title": "[CodeFormer] 顔復元 (fidelity=0.7)"
+  }
+ },
+ "75": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "74",
+    0
+   ],
+   "filename_prefix": "02_CodeFormer"
+  },
+  "_meta": {
+   "title": "[CodeFormer] 結果保存"
+  }
+ },
+ "32": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "55",
+    0
+   ],
+   "filename_prefix": "04_DiffBIR"
+  },
+  "_meta": {
+   "title": "[DiffBIR] 結果保存"
+  }
+ },
+ "42": {
+  "class_type": "SUPIR_model_loader_v2",
+  "inputs": {
+   "model": [
+    "40",
+    0
+   ],
+   "clip": [
+    "40",
+    1
+   ],
+   "vae": [
+    "40",
+    2
+   ],
+   "supir_model": "SUPIR-v0Q_fp16.safetensors",
+   "fp8_unet": false,
+   "diffusion_dtype": "auto",
+   "high_vram": false
+  },
+  "_meta": {
+   "title": "[SUPIR] モデル読込 ← ファイル名を要確認・修正"
+  }
+ },
+ "40": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "sd_xl_base_1.0.safetensors"
+  },
+  "_meta": {
+   "title": "[SUPIR] SDXL チェックポイント"
+  }
+ },
+ "44": {
+  "class_type": "SUPIR_conditioner",
+  "inputs": {
+   "SUPIR_model": [
+    "42",
+    0
+   ],
+   "latents": [
+    "43",
+    2
+   ],
+   "positive_prompt": "high quality, detailed, sharp, 8k",
+   "negative_prompt": "blurry, noise, low quality, artifacts"
+  },
+  "_meta": {
+   "title": "[SUPIR] Conditioner (テキスト条件付け)"
+  }
+ },
+ "47": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "87",
+    0
+   ],
+   "filename_prefix": "05_SUPIR"
+  },
+  "_meta": {
+   "title": "[SUPIR] 結果保存"
+  }
+ },
+ "76": {
+  "class_type": "GFPGANRestorer",
+  "inputs": {
+   "image": [
+    "41",
+    0
+   ],
+   "model_name": "GFPGANv1.4.pth"
+  },
+  "_meta": {
+   "title": "GFPGANRestorer"
+  }
+ },
+ "50": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "77",
+    0
+   ],
+   "filename_prefix": "00_Degraded_Input"
+  },
+  "_meta": {
+   "title": "劣化入力画像を保存"
+  }
+ },
+ "55": {
+  "class_type": "StableSRColorFix",
+  "inputs": {
+   "image": [
+    "31",
+    0
+   ],
+   "color_map_image": [
+    "41",
+    0
+   ],
+   "color_fix": "Wavelet"
+  },
+  "_meta": {
+   "title": "カラーフィックス (Wavelet) ← 色調の一貫性確保"
+  }
+ },
+ "2": {
+  "class_type": "SRDegradationNode",
+  "inputs": {
+   "image": [
+    "53",
+    0
+   ],
+   "scale_factor": 0.25,
+   "multiple_of": 16,
+   "noise_sigma": 25,
+   "noise_seed": 111,
+   "enabled": "true"
+  },
+  "_meta": {
+   "title": "縮小＋ノイズ加算 (enabled=false でスキップ)"
+  }
+ },
+ "30": {
+  "class_type": "Stage1_load",
+  "inputs": {
+   "task": "bfr",
+   "device": "cuda",
+   "infer_type": "float32"
+  },
+  "_meta": {
+   "title": "[DiffBIR] Stage1 モデル読込 (bsr:汎用 bfr:顔 bid:NR)"
+  }
+ },
+ "85": {
+  "class_type": "Stage2_load",
+  "inputs": {
+   "device": "cuda",
+   "infer_type": "float32"
+  },
+  "_meta": {
+   "title": "[DiffBIR] Stage2 モデル読込 (IRControlNet+Diffusion)"
+  }
+ },
+ "43": {
+  "class_type": "SUPIR_first_stage",
+  "inputs": {
+   "SUPIR_VAE": [
+    "42",
+    1
+   ],
+   "image": [
+    "86",
+    0
+   ],
+   "use_tiled_vae": true,
+   "encoder_tile_size": 512,
+   "decoder_tile_size": 512,
+   "encoder_dtype": "auto"
+  },
+  "_meta": {
+   "title": "[SUPIR] First Stage (LQ画像をエンコード＆事前デノイズ)"
+  }
+ },
+ "45": {
+  "class_type": "SUPIR_sample",
+  "inputs": {
+   "SUPIR_model": [
+    "42",
+    0
+   ],
+   "latents": [
+    "43",
+    2
+   ],
+   "positive": [
+    "44",
+    0
+   ],
+   "negative": [
+    "44",
+    1
+   ],
+   "seed": 551495371017000,
+   "steps": 20,
+   "cfg_scale_start": 9,
+   "cfg_scale_end": 1,
+   "EDM_s_churn": 5,
+   "s_noise": 1.003,
+   "DPMPP_eta": 1,
+   "control_scale_start": 1,
+   "control_scale_end": 1,
+   "restore_cfg": -1,
+   "keep_model_loaded": false,
+   "sampler": "RestoreDPMPP2MSampler",
+   "sampler_tile_size": 1024,
+   "sampler_tile_stride": 512
+  },
+  "_meta": {
+   "title": "[SUPIR] サンプリング (RestoreDPMPP2M)"
+  }
+ },
+ "86": {
+  "class_type": "ImageScaleBy",
+  "inputs": {
+   "image": [
+    "77",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "scale_by": 8
+  },
+  "_meta": {
+   "title": "[SUPIR] 前処理: lanczos 8x (SUPIRはHR入力が必要 512x512の場合４倍は真っ黒になるので８倍)"
+  }
+ },
+ "53": {
+  "class_type": "SRDegradationNode",
+  "inputs": {
+   "image": [
+    "1",
+    0
+   ],
+   "scale_factor": 0.5,
+   "multiple_of": 16,
+   "noise_sigma": 0,
+   "noise_seed": 11,
+   "enabled": "true"
+  },
+  "_meta": {
+   "title": "縮小＋ノイズ加算 (enabled=false でスキップ)"
+  }
+ },
+ "46": {
+  "class_type": "SUPIR_decode",
+  "inputs": {
+   "SUPIR_VAE": [
+    "43",
+    0
+   ],
+   "latents": [
+    "45",
+    0
+   ],
+   "use_tiled_vae": true,
+   "decoder_tile_size": 512,
+   "decoder_dtype": "auto"
+  },
+  "_meta": {
+   "title": "[SUPIR] デコード"
+  }
+ },
+ "87": {
+  "class_type": "SRDegradationNode",
+  "inputs": {
+   "image": [
+    "46",
+    0
+   ],
+   "scale_factor": 0.5,
+   "multiple_of": 16,
+   "noise_sigma": 0,
+   "noise_seed": 11,
+   "enabled": "true"
+  },
+  "_meta": {
+   "title": "1/2に縮小（他の手法は４倍なのでそれに合わせる）"
+  }
+ },
+ "41": {
+  "class_type": "ImageScaleBy",
+  "inputs": {
+   "image": [
+    "77",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "scale_by": 4
+  },
+  "_meta": {
+   "title": "前処理: lanczos 4x"
+  }
+ },
+ "31": {
+  "class_type": "DiffBIR_sample",
+  "inputs": {
+   "stage1_model": [
+    "30",
+    0
+   ],
+   "cldm": [
+    "85",
+    0
+   ],
+   "diffusion": [
+    "85",
+    1
+   ],
+   "infer_type": [
+    "85",
+    2
+   ],
+   "image": [
+    "41",
+    0
+   ],
+   "upscale_ratio": 1,
+   "steps": 20,
+   "cfg": 4,
+   "better_start": true,
+   "tiled": false,
+   "tile_size": 512,
+   "tile_stride": 256,
+   "pos_prompt": "high quality, detailed, sharp, 8k",
+   "neg_prompt": "blurry, noise, low quality, artifacts",
+   "seed": 1074298234621638,
+   "device": "cuda"
+  },
+  "_meta": {
+   "title": "[DiffBIR] サンプリング ← 入力名を小文字に修正済み"
+  }
+ },
+ "77": {
+  "class_type": "CleanGaussianBlurNode",
+  "inputs": {
+   "image": [
+    "2",
+    0
+   ],
+   "kernel_size": 5,
+   "sigma": 0.1
+  },
+  "_meta": {
+   "title": "CleanGaussianBlurNode"
+  }
+ },
+ "64": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "41",
+    0
+   ],
+   "filename_prefix": "00_Degraded_Input_x4"
+  },
+  "_meta": {
+   "title": "劣化入力画像x4を保存"
+  }
+ },
+ "88": {
+  "class_type": "DifFaceRestoreNode",
+  "inputs": {
+   "image": [
+    "41",
+    0
+   ],
+   "difface_dir": "DifFace",
+   "start_timesteps": 100,
+   "eta": 0.5,
+   "seed": 12345,
+   "use_fp16": true
+  },
+  "_meta": {
+   "title": "[DifFace] 顔復元（ComfyUI/DifFace にリポジトリが必要）"
+  }
+ },
+ "89": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "88",
+    0
+   ],
+   "filename_prefix": "06_DifFace"
+  },
+  "_meta": {
+   "title": "[DifFace] 結果保存"
+  }
+ }
+}
