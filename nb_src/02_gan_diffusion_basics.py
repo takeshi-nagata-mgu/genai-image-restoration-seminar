@@ -5,7 +5,7 @@
 #
 # 1. **2次元のおもちゃデータ**で GAN と拡散モデルを学習し、GAN の **モード崩壊（Mode Collapse）** と拡散モデルの安定性を比較
 # 2. 画像に「砂嵐」を足していく **拡散（前向き過程）** を可視化
-# 3. 学習済み拡散モデル（DDPM, CelebA-HQ 顔）で **砂嵐から顔が現れる逆過程** を観察
+# 3. 学習済み拡散モデル（DDPM, CelebA-HQ 顔）で **砂嵐から顔が現れる逆過程** を観察し、劣化画像に途中までノイズを加えてから逆拡散する **復元（SDEdit）** を試す
 # 4. **CLIP** で画像とテキストの近さを測る（テキストで生成・復元を制御する仕組みの基礎）
 
 # %% [setup]
@@ -162,6 +162,35 @@ gpu_mem()
 # %% [markdown]
 # **ポイント**：初期の x0 予測は「平均的な顔」でぼんやりしていますが、ステップが進むと細部（髪・肌の質感）が決まっていきます。
 # 画像復元では、この逆過程を **劣化画像で条件付け（ガイド）** することで「劣化画像と矛盾しない、もっともらしい画像」を生成します。
+
+# %% [markdown]
+# ### 3-b. 復元に使う：劣化画像に途中までノイズを加えてから逆拡散する（SDEdit）
+# 砂嵐（t = 999）まで壊さず、劣化画像に **途中（t ≈ 300）までノイズを加えてから** 逆拡散します。
+# 元の顔の形や色は残り、ノイズに埋もれた細部だけが描き直されます（SDEdit, Meng+ ICLR 2022）。
+# 画像は CelebA-HQ の検証用の 1 枚（Hugging Face の mattymchen/celeba-hq）。縦横 1/4 に縮小して戻し、ノイズ（σ = 0.04）を加えて劣化させます。
+
+# %%
+import json, cv2
+face_path = os.path.join(WEIGHTS_DIR, "celebahq_val_5.jpg")
+if not os.path.exists(face_path):
+    rows = json.load(urllib.request.urlopen("https://datasets-server.huggingface.co/rows?dataset=mattymchen/celeba-hq&config=default&split=validation&offset=0&length=10"))["rows"]
+    urllib.request.urlretrieve(rows[5]["row"]["image"]["src"], face_path)
+gt = to_np(Image.open(face_path).resize((256, 256), Image.LANCZOS))
+deg = cv2.resize(cv2.resize(gt, (64, 64), interpolation=cv2.INTER_AREA), (256, 256), interpolation=cv2.INTER_CUBIC)
+deg = np.clip(deg + np.random.default_rng(0).normal(0, 0.04, deg.shape), 0, 1).astype(np.float32)
+
+sch = DDIMScheduler.from_config(pipe.scheduler.config); sch.set_timesteps(100)
+abar = sch.alphas_cumprod.to(DEVICE)
+T0 = 300                                                        # ここまでノイズを加える（大きいほど自由に描き直す）
+g = torch.Generator(DEVICE).manual_seed(2)
+x = abar[T0].sqrt() * (to_tensor(deg).to(DEVICE) * 2 - 1) + (1 - abar[T0]).sqrt() * torch.randn((1, 3, 256, 256), generator=g, device=DEVICE)
+x_t0 = tensor_to_pil((x + 1) / 2)
+with torch.no_grad():
+    for t in sch.timesteps:
+        if t <= T0:                                             # t0 より後の段だけ逆拡散する
+            x = sch.step(pipe.unet(x, t).sample, t, x).prev_sample
+res = tensor_to_pil((x + 1) / 2)
+show([deg, x_t0, res, gt], ["degraded (details lost)", f"noise added up to t = {T0}", "after reverse diffusion\n(same face, details redrawn)", "(ref.) ground truth"], size=3.4)
 
 # %% [markdown]
 # ## 4. CLIP：画像とテキストを同じ空間に埋め込む

@@ -4,6 +4,9 @@
 
 スライドで説明した技術を、**Google Colab** または **社内のGPU搭載PC** で再現するための教材です。
 
+**スライドの更新（配布後の修正）**：配布したスライドから変更したページだけを PDF にしています。
+- [docs/スライド更新分_20261105.pdf](docs/スライド更新分_20261105.pdf)（2026-11-05）：P143 の図とキャプションで、DA-LSIK-Diff の説明を「拡散モデルで生成」から「ベースは DiffBIR」に変更（PDF のページ番号は 1 ですが、配布版の P143 です）
+
 ## 1. Google Colab ノートブック
 
 リンクを開いたら **［ファイル］→［ドライブにコピーを保存］** してから、上のセルから順に実行してください。
@@ -13,7 +16,7 @@
 | 00 | はじめに：実行環境の確認 | T4（無料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/00_setup_check.ipynb) |
 | 01 | 劣化モデルと古典的復元（Wiener・補間） | CPU 可 | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/01_degradation_classical.ipynb) |
 | 02 | GAN・拡散モデル・CLIP の仕組み | T4（無料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/02_gan_diffusion_basics.ipynb) |
-| 03 | 超解像：Real-ESRGAN vs 拡散モデル | T4（無料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/03_super_resolution.ipynb) |
+| 03 | 超解像：Real-ESRGAN vs 拡散モデル、L2/L1 損失の CNN の比較（CNN の学習は T4 で約 3〜4 時間。回数を減らす・飛ばす設定あり） | T4（無料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/03_super_resolution.ipynb) |
 | 04 | Inpainting / Outpainting・境界のなじませ | T4（無料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/04_inpainting_outpainting.ipynb) |
 | 05 | Deblurring / Denoising（DPIR・SCUNet） | T4（無料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/05_deblur_denoise.ipynb) |
 | 06 | 条件付け：img2img・ControlNet・IP-Adapter | T4（無料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/06_conditioning_controlnet_ipadapter.ipynb) |
@@ -23,7 +26,7 @@
 | 10 | LoRA による現場特化チューニング | L4 推奨（有料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/10_lora_finetuning.ipynb) |
 | 11 | マルチモーダル：言葉で指示する復元・VLM | L4 推奨（有料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/11_multimodal_vlm.ipynb) |
 | 12 | 物理モデルを組み込んだ AI：スマホ→一眼の高画質化・塑性変形した部品の復元（約 60 分。DRUNet の調整に時間がかかる） | T4（無料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/12_physics_informed_restoration.ipynb) |
-| 13 | 奥行きで変わるピンボケの復元：場所ごとの逆カーネル（最小二乗法） | T4（無料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/13_spatially_varying_deblur.ipynb) |
+| 13 | 奥行きで変わるピンボケの復元：LSIK・DA-LSIK（最小二乗法の逆カーネル）、先行研究 4 手法・DA-LSIK-PB/PH/Diff との比較（全部で T4 約 2〜3 時間。章ごとに飛ばせる） | T4（無料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/13_spatially_varying_deblur.ipynb) |
 | 14 | VLM による外観検査：異常マップ＋言葉による報告 | T4（無料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/14_vlm_visual_inspection.ipynb) |
 | 15 | ComfyUI on Colab：SUPIR | A100＋ハイメモリ（有料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/15_comfyui_on_colab_supir.ipynb) |
 | 16 | 超解像・顔復元の手法比較：Real-ESRGAN / StableSR / DiffBIR / SUPIR / GFPGAN / CodeFormer / DifFace（スライドの比較実験の再現） | A100＋ハイメモリ（有料） | [![Open](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/takeshi-nagata-mgu/genai-image-restoration-seminar/blob/main/notebooks/16_sr_face_comparison_comfyui.ipynb) |
@@ -91,7 +94,7 @@ jupyter lab
 notebooks/            演習ノートブック（Colab / ローカル共通）
 notebooks_executed/   実行結果つきのノートブック（閲覧用）
 comfyui_workflows/    ComfyUI ワークフローと講座用カスタムノード
-docs/                 Colab 有料枠ガイド、ローカル環境構築ガイド（PDF）
+docs/                 Colab 有料枠ガイド、ローカル環境構築ガイド、スライドの更新分（PDF）
 requirements.txt      ローカル用のライブラリ一覧（講師の PC で動作を確認した版）
 nb_src/               ノートブックの元ソース（# %% 形式）と生成・テスト用スクリプト、ガイドの元原稿（docs_src/）
 ```

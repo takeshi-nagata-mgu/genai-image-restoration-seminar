@@ -1,12 +1,13 @@
 # %% [markdown]
 # # 03. 超解像（Super Resolution）：補間 vs Real-ESRGAN vs 拡散モデル
 #
-# **セミナー対応章**：第3章（1）　｜　**推奨ランタイム**：Colab無料枠 T4 GPU　｜　**所要時間**：約5分（初回はモデルDLで+数分）
+# **セミナー対応章**：第3章（1）　｜　**推奨ランタイム**：Colab無料枠 T4 GPU　｜　**所要時間**：1.〜6. 約5分（初回はモデルDLで+数分）、7. の CNN の学習（2 つ）は T4 で約 3〜4 時間（`L12_ITERS = 10000` なら約 40 分、`RUN_L1L2 = False` で飛ばせる）
 #
 # 1. Real-ESRGAN が学習に使う **高次劣化モデル**（劣化を2回繰り返す）で、リアルな低画質画像を作る
 # 2. **Bicubic補間 / Real-ESRGAN（GAN）/ Stable Diffusion x4 Upscaler（拡散モデル）** を比較
 # 3. **処理時間・GPUメモリ** を測り、倍率と計算コストのトレードオフを確認
 # 4. 大きな画像を扱うための **タイル処理**
+# 5. **同じ CNN を L2 損失と L1 損失で学習** して、CNN の復元がボケる理由（候補の平均）を確かめる
 #
 # > StableSR・DiffBIR・SUPIR などの大型モデルは、配布の ComfyUI ワークフロー、またはノートブック 15（Colab有料枠向け）で試せます。
 
@@ -177,6 +178,115 @@ big_sr = tiled_sr(compact, big_lr, tile=96, overlap=16)
 print(f"tiled SR {big_lr.size} -> {big_sr.size}: {time.time()-t:.2f}s")
 show([big_lr.resize(big_sr.size, Image.BICUBIC).crop((300, 150, 700, 550)), big_sr.crop((300, 150, 700, 550))],
      ["Bicubic x4 (crop)", "Tiled Real-ESRGAN compact x4 (crop)"])
+
+# %% [markdown]
+# ## 7. CNN（L2 損失）の復元はなぜボケるのか：同じ CNN を損失だけ変えて学習する
+# 同じネットワーク（SRResNet 型、16 ブロック、約 150 万係数）を、同じデータ（DIV2K の検証用 100 枚）・同じ乱数で、**損失だけ L2（二乗誤差）と L1（絶対誤差）に変えて** 学習します。
+# 劣化は「縦横 1/4 に縮小 ＋ ノイズ σ = 5」。比較として、公開モデルの Real-ESRNet（L1 損失）と Real-ESRGAN（L1 ＋ 知覚 ＋ GAN 損失。同じ RRDB・同じデータで損失だけが違う）も並べます。
+# - L2 を最小にする出力は、正解の候補の「平均」（L1 なら「中央値」）。石の目地の位置が少しずつ違う候補を平均すると、模様はぼやけて消える
+# - 評価は Kodak 24 枚の平均（PSNR は高いほど、LPIPS は低いほど良い）と、kodim01 の石の壁の拡大
+#
+# 使うモデル・データ：SRResNet 型の CNN（C. Ledig+, CVPR 2017 の生成器と同じ構成。このノートブックで学習）、
+# Real-ESRNet x4plus / Real-ESRGAN x4plus（X. Wang+, ICCVW 2021。RRDB ネットワーク、約 1,670 万パラメータ、github.com/xinntao/Real-ESRGAN、BSD-3）、
+# LPIPS（R. Zhang+, CVPR 2018。AlexNet の特徴で見た目の差を測る、BSD-2）、DIV2K（E. Agustsson & R. Timofte, CVPRW 2017。学習用の高解像度画像）
+#
+# 学習は 1 つ 50,000 回で、RTX 5090 で約 15 分、**T4 では 1 つ 約 1.5〜2 時間** かかります。`L12_ITERS` を 10,000 にすると約 5 分の 1 の時間になります（値は少し下がる）。
+# 学習した重みは weights/ に保存し、次からは読み込むだけです（`RUN_L1L2 = False` で飛ばせます）。
+
+# %%
+RUN_L1L2 = True
+L12_ITERS = 50000
+if RUN_L1L2:
+    import glob, zipfile, cv2, lpips
+    import torch.nn as nn, torch.nn.functional as nnF
+    class RB(nn.Module):
+        def __init__(s, c): super().__init__(); s.b = nn.Sequential(nn.Conv2d(c, c, 3, 1, 1), nn.ReLU(True), nn.Conv2d(c, c, 3, 1, 1))
+        def forward(s, x): return x + s.b(x)
+    class SRResNet(nn.Module):
+        def __init__(s, c=64, n=16):
+            super().__init__()
+            s.head = nn.Conv2d(3, c, 3, 1, 1); s.body = nn.Sequential(*[RB(c) for _ in range(n)], nn.Conv2d(c, c, 3, 1, 1))
+            s.up = nn.Sequential(nn.Conv2d(c, 4 * c, 3, 1, 1), nn.PixelShuffle(2), nn.ReLU(True),
+                                 nn.Conv2d(c, 4 * c, 3, 1, 1), nn.PixelShuffle(2), nn.ReLU(True), nn.Conv2d(c, 3, 3, 1, 1))
+        def forward(s, x):
+            h = s.head(x); return s.up(h + s.body(h)) + nnF.interpolate(x, scale_factor=4, mode="bilinear", align_corners=False)
+
+    def degrade_t(hr, g):                                      # 学習用の劣化：縦横 1/4（bicubic）＋ノイズ σ=5 → 8 bit
+        lr = nnF.interpolate(hr, scale_factor=0.25, mode="bicubic", antialias=True, align_corners=False)
+        lr = lr + torch.randn(lr.shape, generator=g, device=lr.device) * 5 / 255
+        return (lr.clamp(0, 1) * 255).round() / 255
+
+    def train_srresnet(loss_name, iters):
+        path = os.path.join(WEIGHTS_DIR, f"srresnet_{loss_name}.pth")
+        net = SRResNet().to(DEVICE).to(memory_format=torch.channels_last)
+        if os.path.exists(path):
+            net.load_state_dict(torch.load(path, map_location=DEVICE)); print(f"{loss_name}: 学習済みの重みを読み込みました（{path}）")
+            return net.eval()
+        ddir = os.path.join("data", "DIV2K_valid_HR")
+        if not os.path.exists(ddir):
+            os.makedirs("data", exist_ok=True)
+            zipfile.ZipFile(download("https://data.vision.ee.ethz.ch/cvl/DIV2K/DIV2K_valid_HR.zip")).extractall("data")   # 約 450 MB
+        imgs = [torch.from_numpy(np.asarray(Image.open(f).convert("RGB"))).permute(2, 0, 1).to(DEVICE) for f in sorted(glob.glob(os.path.join(ddir, "*.png")))]
+        torch.manual_seed(0); g = torch.Generator(device=DEVICE).manual_seed(0); rs = np.random.default_rng(0)
+        opt = torch.optim.Adam(net.parameters(), 2e-4)
+        sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, iters, 1e-6)
+        crit = nn.MSELoss() if loss_name == "l2" else nn.L1Loss()
+        bf16 = torch.cuda.is_bf16_supported()                  # T4 は bfloat16 が使えないので float16 ＋ 損失のスケーリング
+        scaler = torch.amp.GradScaler(enabled=not bf16)
+        B, Pz = 16, 192; t0 = time.time()
+        for it in range(1, iters + 1):
+            batch = []
+            for _ in range(B):
+                im = imgs[rs.integers(len(imgs))]; y0 = rs.integers(im.shape[1] - Pz); x0 = rs.integers(im.shape[2] - Pz)
+                p = im[:, y0:y0 + Pz, x0:x0 + Pz]
+                if rs.random() < 0.5: p = p.flip(2)
+                if rs.random() < 0.5: p = p.transpose(1, 2)
+                batch.append(p)
+            hr_b = torch.stack(batch).float() / 255
+            with torch.autocast("cuda", torch.bfloat16 if bf16 else torch.float16):
+                sr_b = net(degrade_t(hr_b, g).contiguous(memory_format=torch.channels_last))
+            loss = crit(sr_b.float(), hr_b)
+            opt.zero_grad(set_to_none=True); scaler.scale(loss).backward(); scaler.step(opt); scaler.update(); sched.step()
+            if it % 5000 == 0:
+                print(f"{loss_name} it {it} loss {loss.item():.5f} ({time.time()-t0:.0f}s)")
+        torch.save(net.state_dict(), path)
+        del imgs; return net.eval()
+
+    cnn = {k: train_srresnet(k, L12_ITERS) for k in ("l2", "l1")}
+    esrnet = load_spandrel("https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.1/RealESRNet_x4plus.pth")
+
+    def degrade_pil(hr_, seed=0):                              # 評価用の劣化（学習と同じ：1/4 ＋ ノイズ σ=5）
+        lr_ = hr_.resize((hr_.width // 4, hr_.height // 4), Image.BICUBIC)
+        a = np.clip(np.asarray(lr_, np.float32) / 255 + np.random.default_rng(seed).normal(0, 5 / 255, (lr_.height, lr_.width, 3)), 0, 1)
+        return Image.fromarray((a * 255).round().astype(np.uint8))
+    @torch.no_grad()
+    def run_net(net, lr_):
+        y = net(to_tensor(lr_).to(DEVICE))
+        return Image.fromarray((y[0].float().clamp(0, 1).permute(1, 2, 0).cpu().numpy() * 255).round().astype(np.uint8))
+    lp = lpips.LPIPS(net="alex", verbose=False)
+    lpd = lambda a, b: lp(to_tensor(a) * 2 - 1, to_tensor(b) * 2 - 1).item()
+    ps = lambda a, b: cv2.PSNR(np.asarray(a), np.asarray(b))
+    nets = {"CNN (L2 loss)": cnn["l2"], "CNN (L1 loss)": cnn["l1"], "Real-ESRNet": esrnet, "Real-ESRGAN": esrgan}
+    acc = {k: [] for k in ["Bicubic"] + list(nets)}
+    for i in range(1, 25):                                     # Kodak 24 枚の平均
+        hr_ = Image.open(download(f"https://r0k.us/graphics/kodak/kodak/kodim{i:02d}.png")).convert("RGB"); lr_ = degrade_pil(hr_)
+        bic = lr_.resize(hr_.size, Image.BICUBIC); acc["Bicubic"].append((ps(bic, hr_), lpd(bic, hr_)))
+        for k, n in nets.items():
+            o_ = run_net(n, lr_); acc[k].append((ps(o_, hr_), lpd(o_, hr_)))
+    print("Kodak 24 枚の平均")
+    for k, v in acc.items():
+        v = np.array(v); print(f"  {k:16s} PSNR {v[:, 0].mean():.2f} dB  LPIPS {v[:, 1].mean():.3f}")
+
+    hr_ = Image.open(download("https://r0k.us/graphics/kodak/kodak/kodim01.png")).convert("RGB"); lr_ = degrade_pil(hr_)
+    box_w = (250, 150, 506, 406)                               # 石の壁
+    ims = [("Ground truth", hr_), ("Bicubic", lr_.resize(hr_.size, Image.BICUBIC))] + [(k, run_net(n, lr_)) for k, n in nets.items()]
+    show([im.crop(box_w) for _, im in ims],
+         [k if k == "Ground truth" else f"{k}\nPSNR {ps(im, hr_):.2f} / LPIPS {lpd(im, hr_):.3f}" for k, im in ims], size=3.3)
+
+# %% [markdown]
+# **結果の読み方**：L2 でも L1 でも、CNN の出力は石の目地や表面のざらつきがぼやける（候補の平均・中央値になる）。PSNR は高いが見た目はボケ（知覚–歪みトレードオフ）。
+# Kodak 24 枚の平均では、PSNR（＝L2 の尺度）でも L1 の方がわずかに高い（L1 は誤差の小さい細部でも同じ強さで直すので、細部まで学習が進む）。
+# 右端の Real-ESRGAN は質感がくっきりするが、模様は正解と一致しない（「もっともらしい 1 サンプル」を出す GAN の性質）。
 
 # %% [markdown]
 # ## まとめ

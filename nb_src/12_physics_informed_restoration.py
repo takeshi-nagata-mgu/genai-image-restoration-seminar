@@ -594,32 +594,53 @@ for k in range(20):                                                          # �
         o = np.clip(o, 0, 1)
         res2[name]["psnr"].append(P(o, x)); res2[name]["ssim"].append(ssim(o, x)); res2[name]["line"].append(line_f(o, x))
     if k == 0:
-        ex2 = (x, outs)
+        ex2 = (x, outs, pr)
 for name in names2:
     m = {k: np.mean(v) for k, v in res2[name].items()}
     print(f"{name:32s} PSNR {m['psnr']:5.2f} dB   SSIM {m['ssim']:.3f}   線の F 値 {m['line']:.3f}")
-x, outs = ex2
+x, outs, pr0 = ex2
 show([outs[0], outs[1], outs[2], outs[4], x],
      [f"deformed {P(outs[0],x):.1f} dB", f"inpaint only {P(outs[1],x):.1f} dB", f"U-Net (black box) {P(outs[2],x):.1f} dB",
       f"reverse process {P(outs[4],x):.1f} dB", "original"], size=4.2, rows=2)
 
-# AI の中身：U-Net が出した「先端らしさ」の地図と、そこから読んだ数
+# AI の中身：U-Net が出す 6 枚の地図をすべて表示し、そこから読んだ 6 個の数を正解と比べる
 y = outs[0]
 with torch.no_grad():
-    p = [v.item() for v in phys_net(torch.from_numpy(y).permute(2, 0, 1)[None].to(DEVICE))]
-    att = torch.softmax(phys_net.logit[0], -1).view(S2 // 2, S2 // 2).cpu().numpy()
-fig, ax = plt.subplots(1, 3, figsize=(15, 5.2))
-ax[0].imshow(y); ax[0].set_title("input (deformed, x_1)", fontsize=15)
-ax[1].imshow(att ** 0.5, cmap="magma"); ax[1].set_title("U-Net map 1: tip-ness (softmax)", fontsize=15)
-ax[2].imshow(y); ax[2].plot(p[0], p[1], "o", color="red", ms=9)
-for sg in (1, -1):                                           # 推定した向き・開いた角度で、割れた面の向きを描く
+    xt = torch.from_numpy(y).permute(2, 0, 1)[None].to(DEVICE)
+    p = [v.item() for v in phys_net(xt)]
+    o = phys_net.u(torch.cat([F.avg_pool2d(xt, 2), phys_net.coord], 1))[0].cpu().numpy()   # 6 × (S2/2) × (S2/2)
+att = np.exp(o[0] - o[0].max()); att /= att.sum()                           # 地図 1 の softmax ＝ 先端らしさ
+v = (o[1:].reshape(5, -1) * att.ravel()).sum(1)                             # 地図 2〜6 を、先端らしさで重み付けして平均
+deg = lambda r: np.degrees(r) % 360
+ext = (0, S2, S2, 0)                                                        # 地図は半分の大きさ → 元の画像の座標で表示
+fig, axes = plt.subplots(2, 4, figsize=(18.5, 9.6)); ax = axes.ravel()
+ax[0].imshow(np.clip(y, 0, 1), extent=ext)
+for sg in (1, -1):                                                          # 推定した向き・開いた角度で、割れた面の向きを描く
     ang = p[2] + sg * p[3] / 2
-    ax[2].plot([p[0], p[0] + 120 * np.cos(ang)], [p[1], p[1] + 120 * np.sin(ang)], "-", color="red", lw=2)
-ax[2].set_title(f"tip = centroid, direction & angle {np.degrees(p[3]):.1f} deg", fontsize=15)
-for a in ax:
-    a.axis("off")
+    ax[0].plot([p[0], p[0] + 110 * np.cos(ang)], [p[1], p[1] + 110 * np.sin(ang)], "-", color="red", lw=2.5)
+ax[0].plot(p[0], p[1], "o", color="red", ms=10); ax[0].plot(pr0["tip"][0], pr0["tip"][1], "x", color="#00E0FF", ms=14, mew=3)
+ax[0].set_title("input (deformed, x_1)\nred: estimated tip & crack, cyan x: true tip", fontsize=14)
+ax[1].imshow(att ** 0.5, cmap="magma", extent=ext)
+ax[1].set_title(f"map 1: tip-ness\ncentroid ({p[0]:.0f}, {p[1]:.0f}) / true ({pr0['tip'][0]:.0f}, {pr0['tip'][1]:.0f})", fontsize=14)
+rows_ = [("map 2: direction (cos)", f"mean {v[0]:+.2f}"),
+         ("map 3: direction (sin)", f"mean {v[1]:+.2f} -> {deg(p[2]):.0f} deg (true {deg(pr0['a']):.0f})"),
+         ("map 4: opening angle", f"mean {v[2]:+.2f} -> {np.degrees(p[3]):.1f} deg (true {np.degrees(pr0['theta']):.1f})"),
+         ("map 5: bending beta", f"mean {v[3]:+.2f} -> {p[4]:.2f} (true {pr0['beta']:.2f})"),
+         ("map 6: blunting delta", f"mean {v[4]:+.2f} -> {p[5]:.1f} px (true {pr0['delta']:.1f})")]
+lev = np.sort(att.ravel())[::-1]; lev = lev[np.searchsorted(np.cumsum(lev), 0.9)]   # 先端らしさの 90% が入る範囲（白線）
+n_ = S2 // 2; cc = np.linspace(1, S2 - 1, n_)
+for k, (h, t_) in enumerate(rows_):
+    m = o[k + 1]; lo, hi = np.percentile(m, [1, 99])
+    im = ax[k + 2].imshow(m, cmap="viridis", vmin=lo, vmax=hi, extent=ext)
+    ax[k + 2].contour(cc, cc, att, levels=[lev], colors="white", linewidths=2.5)
+    fig.colorbar(im, ax=ax[k + 2], fraction=0.046, pad=0.02)
+    ax[k + 2].set_title(h + "\n" + t_, fontsize=14)
+ax[7].axis("off")
+for a in ax[:7]:
+    a.set_xticks([]); a.set_yticks([])
 plt.tight_layout(); plt.show()
-print(f"AI が読んだ 6 個の数：先端 ({p[0]:.1f}, {p[1]:.1f})、向き {np.degrees(p[2]):.0f} 度、開いた角度 {np.degrees(p[3]):.1f} 度、曲がり β {p[4]:.2f}、鈍化 {p[5]:.1f} 画素")
+print(f"AI が読んだ 6 個の数：先端 ({p[0]:.1f}, {p[1]:.1f})、向き {deg(p[2]):.0f} 度、開いた角度 {np.degrees(p[3]):.1f} 度、曲がり β {p[4]:.2f}、鈍化 {p[5]:.1f} 画素")
+print("地図 1 は先端の所だけが光り、その重心が先端の位置。地図 2〜6 は、白線（先端らしさの 90% が入る範囲）の中の値だけが使われる")
 
 # %% [markdown]
 # **観察ポイント**：すき間を埋めるだけ（inpaint）では、広がった輪郭やけがき線・結晶粒のずれが残ります。
